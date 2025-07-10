@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Serpiente Controlada por Poses</title>
+    <link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .video-container {
+            position: relative;
+            display: inline-block;
+            margin: 20px 0;
+        }
+
+        .ip-camera-feed {
+            width: 640px;
+            height: 480px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .pose-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            border-radius: 8px;
+        }
+
+        .controls {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            border-left: 4px solid #2196f3;
+        }
+
+        .error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+
+        .success {
+            background: #e8f5e8;
+            border-left-color: #4caf50;
+        }
+
+        .config-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        input[type="text"] {
+            width: 200px;
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #2196f3;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1976d2;
+        }
+
+        .btn-secondary {
+            background: #757575;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #616161;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        /* Estilos para el juego de la serpiente */
+        #game-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        #snake-game {
+            border: 2px solid #333;
+            border-radius: 8px;
+            background-color: #f0f0f0;
+        }
+
+        .game-info {
+            margin-left: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            width: 250px;
+        }
+
+        .game-info h3 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        #game-status {
+            font-weight: bold;
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 4px;
+            background: #e3f2fd;
+        }
+
+        #score {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2196f3;
+        }
+
+        .instructions {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .instructions ul {
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🐍 Serpiente Controlada por Poses</h1>
+
+        <div class="config-section">
+            <h3>Configuración de Cámara IP</h3>
+            <label>IP de la cámara:</label>
+            <input type="text" id="cameraIP" value="192.168.1.37:8080" placeholder="192.168.1.37:8080">
+            <button class="btn-primary" onclick="updateCameraFeed()">Actualizar Feed</button>
+        </div>
+
+        <div class="controls">
+            <button id="startDetection" class="btn-primary">Iniciar Detección</button>
+            <button id="stopDetection" class="btn-danger" disabled>Detener Detección</button>
+            <button class="btn-secondary" onclick="clearCanvas()">Limpiar Canvas</button>
+            <button id="startGame" class="btn-primary" disabled>Iniciar Juego</button>
+            <button id="resetGame" class="btn-secondary" disabled>Reiniciar Juego</button>
+        </div>
+
+        <div id="status" class="status">
+            <strong>Estado:</strong> <span id="statusText">Esperando inicialización...</span>
+        </div>
+
+        <div class="video-container">
+            <img id="ipCameraFeed" class="ip-camera-feed" src="http://192.168.1.37:8080/video" alt="Feed de cámara IP"
+                crossorigin="anonymous">
+            <canvas id="poseCanvas" class="pose-canvas" width="640" height="480"></canvas>
+        </div>
+
+        <div id="game-container">
+            <canvas id="snake-game" width="400" height="400"></canvas>
+
+            <div class="game-info">
+                <h3>Información del Juego</h3>
+                <div id="game-status">Esperando para iniciar...</div>
+                <div>Puntuación: <span id="score">0</span></div>
+
+                <div class="instructions">
+                    <h4>Instrucciones:</h4>
+                    <ul>
+                        <li>Mantén tu mano izquierda visible en la cámara</li>
+                        <li>Mueve tu mano izquierda:</li>
+                        <li>• Arriba de la cabeza → Arriba</li>
+                        <li>• Debajo del torso → Abajo</li>
+                        <li>• A la izquierda de tu cuerpo → Derecha (serpiente)</li>
+                        <li>• A la derecha de tu cuerpo → Izquierda (serpiente)</li>
+                    </ul>
+                    <p>La serpiente solo muere si choca consigo misma.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>Información</h3>
+            <p>• Asegúrate de que la app IP Webcam esté funcionando en tu celular</p>
+            <p>• Ambos dispositivos deben estar en la misma red Wi-Fi</p>
+            <p>• La detección se actualiza cada 100ms para optimizar rendimiento</p>
+            <p>• Los puntos rojos indican articulaciones detectadas</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import {
+            PoseLandmarker,
+            FilesetResolver,
+            DrawingUtils
+        } from "https://cdn.skypack.dev/@mediapipe/tasks-vision@0.10.0";
+
+        // Variables para la detección de poses
+        let poseLandmarker = null;
+        let detectionRunning = false;
+        let detectionInterval = null;
+        const canvas = document.getElementById('poseCanvas');
+        const ctx = canvas.getContext('2d');
+        const drawingUtils = new DrawingUtils(ctx);
+        const ipCameraFeed = document.getElementById('ipCameraFeed');
+        const statusText = document.getElementById('statusText');
+        const statusDiv = document.getElementById('status');
+        const startBtn = document.getElementById('startDetection');
+        const stopBtn = document.getElementById('stopDetection');
+        const startGameBtn = document.getElementById('startGame');
+        const resetGameBtn = document.getElementById('resetGame');
+        const gameStatus = document.getElementById('game-status');
+        const scoreElement = document.getElementById('score');
+
+        // Variables para el juego de la serpiente
+        const gameCanvas = document.getElementById('snake-game');
+        const gameCtx = gameCanvas.getContext('2d');
+        const gridSize = 20;
+        const tileCount = gameCanvas.width / gridSize;
+        let snake = [];
+        let apple = {};
+        let direction = 'right';
+        let nextDirection = 'right';
+        let score = 0;
+        let gameRunning = false;
+        let gameOver = false;
+        let lastHandPosition = null;
+        let gameInterval = null;
+
+        // Inicializar MediaPipe
+        async function initializePoseLandmarker() {
+            try {
+                updateStatus('Cargando modelo de MediaPipe...', 'info');
+
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+                );
+
+                poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+                        delegate: "GPU"
+                    },
+                    runningMode: "IMAGE",
+                    numPoses: 2
+                });
+
+                updateStatus('Modelo cargado correctamente. Listo para detectar poses.', 'success');
+                startBtn.disabled = false;
+                startGameBtn.disabled = false;
+
+            } catch (error) {
+                console.error('Error al cargar MediaPipe:', error);
+                updateStatus('Error al cargar el modelo: ' + error.message, 'error');
+            }
+        }
+
+        // Actualizar estado
+        function updateStatus(message, type = 'info') {
+            statusText.textContent = message;
+            statusDiv.className = 'status';
+            if (type === 'error') statusDiv.className += ' error';
+            if (type === 'success') statusDiv.className += ' success';
+        }
+
+        // Actualizar feed de cámara
+        window.updateCameraFeed = function () {
+            const cameraIP = document.getElementById('cameraIP').value;
+            const newSrc = `http://${cameraIP}/video`;
+            ipCameraFeed.src = newSrc;
+            updateStatus(`Feed actualizado a: ${newSrc}`, 'info');
+        }
+
+        // Limpiar canvas
+        window.clearCanvas = function () {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Determinar la dirección basada en la posición de la mano izquierda (CORREGIDO)
+        function determineDirection(leftHand, leftShoulder, rightShoulder, nose) {
+            if (!leftHand || !leftShoulder || !rightShoulder || !nose) return null;
+
+            // Calcular el centro del torso (entre los hombros)
+            const torsoCenterX = (leftShoulder.x + rightShoulder.x) / 2;
+            const torsoCenterY = (leftShoulder.y + rightShoulder.y) / 2;
+
+            // Calcular el ancho del torso (distancia entre hombros)
+            const torsoWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+
+            // Definir zonas relativas al torso
+            const headThreshold = nose.y - torsoWidth * 0.5;
+            const torsoBottomThreshold = torsoCenterY + torsoWidth * 0.5;
+            const leftThreshold = torsoCenterX - torsoWidth * 0.6;
+            const rightThreshold = torsoCenterX + torsoWidth * 0.6;
+
+            // Determinar la posición relativa de la mano (CORRECCIÓN APLICADA)
+            if (leftHand.y < headThreshold) {
+                return 'up';
+            } else if (leftHand.y > torsoBottomThreshold) {
+                return 'down';
+            } else if (leftHand.x < leftThreshold) {
+                return 'right'; // Cambiado de 'left' a 'right'
+            } else if (leftHand.x > rightThreshold) {
+                return 'left'; // Cambiado de 'right' a 'left'
+            }
+
+            return null;
+        }
+
+        // Detectar poses en la imagen
+        async function detectPoses() {
+            if (!poseLandmarker || !detectionRunning) return;
+
+            try {
+                // Crear un canvas temporal para capturar la imagen
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = ipCameraFeed.width || 640;
+                tempCanvas.height = ipCameraFeed.height || 480;
+
+                // Dibujar la imagen actual del feed
+                tempCtx.drawImage(ipCameraFeed, 0, 0, tempCanvas.width, tempCanvas.height);
+
+                // Detectar poses
+                const results = await poseLandmarker.detect(tempCanvas);
+
+                // Limpiar canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Dibujar landmarks y determinar dirección
+                if (results.landmarks && results.landmarks.length > 0) {
+                    for (const landmarks of results.landmarks) {
+                        // Dibujar puntos de las articulaciones
+                        drawingUtils.drawLandmarks(landmarks, {
+                            radius: (data) => DrawingUtils.lerp(data.from?.z || 0, -0.15, 0.1, 8, 3),
+                            fillColor: '#FF0000',
+                            color: '#FF0000'
+                        });
+
+                        // Dibujar conexiones entre puntos
+                        drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
+                            color: '#00FF00',
+                            lineWidth: 2
+                        });
+
+                        // Obtener puntos clave para el control
+                        const leftHand = landmarks[15]; // Mano izquierda
+                        const leftShoulder = landmarks[11]; // Hombro izquierdo
+                        const rightShoulder = landmarks[12]; // Hombro derecho
+                        const nose = landmarks[0]; // Nariz
+
+                        // Determinar dirección si el juego está en marcha
+                        if (gameRunning) {
+                            const newDirection = determineDirection(leftHand, leftShoulder, rightShoulder, nose);
+                            if (newDirection) {
+                                lastHandPosition = newDirection;
+
+                                // Solo permitir cambios de dirección de 90 grados
+                                if (
+                                    (direction === 'up' && newDirection !== 'down') ||
+                                    (direction === 'down' && newDirection !== 'up') ||
+                                    (direction === 'left' && newDirection !== 'right') ||
+                                    (direction === 'right' && newDirection !== 'left')
+                                ) {
+                                    nextDirection = newDirection;
+                                }
+                            }
+                        }
+                    }
+
+                    updateStatus(`Detectando poses... (${results.landmarks.length} persona(s) detectada(s))`, 'success');
+                } else {
+                    updateStatus('Detección activa - No se detectaron poses', 'info');
+                }
+
+            } catch (error) {
+                console.error('Error en detección:', error);
+                updateStatus('Error en detección: ' + error.message, 'error');
+            }
+        }
+
+        // Iniciar detección
+        function startDetection() {
+            if (!poseLandmarker) {
+                updateStatus('El modelo no está cargado aún', 'error');
+                return;
+            }
+
+            detectionRunning = true;
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+
+            // Ejecutar detección cada 100ms
+            detectionInterval = setInterval(detectPoses, 100);
+            updateStatus('Detección iniciada...', 'info');
+        }
+
+        // Detener detección
+        function stopDetection() {
+            detectionRunning = false;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+                detectionInterval = null;
+            }
+
+            clearCanvas();
+            updateStatus('Detección detenida', 'info');
+        }
+
+        // Inicializar el juego de la serpiente
+        function initGame() {
+            // Inicializar la serpiente
+            snake = [];
+            for (let i = 3; i >= 0; i--) {
+                snake.push({ x: i * gridSize, y: 0 });
+            }
+
+            // Colocar la primera manzana
+            placeApple();
+
+            // Reiniciar variables del juego
+            direction = lastHandPosition || 'right';
+            nextDirection = direction;
+            score = 0;
+            scoreElement.textContent = score;
+            gameOver = false;
+            gameRunning = true;
+            gameStatus.textContent = "Juego en curso";
+            gameStatus.style.backgroundColor = "#e8f5e8";
+            gameStatus.style.borderLeft = "4px solid #4caf50";
+
+            resetGameBtn.disabled = false;
+        }
+
+        // Colocar una manzana en una posición aleatoria
+        function placeApple() {
+            apple = {
+                x: Math.floor(Math.random() * tileCount) * gridSize,
+                y: Math.floor(Math.random() * tileCount) * gridSize
+            };
+
+            // Asegurarse de que la manzana no aparezca sobre la serpiente
+            for (let i = 0; i < snake.length; i++) {
+                if (snake[i].x === apple.x && snake[i].y === apple.y) {
+                    placeApple();
+                    return;
+                }
+            }
+        }
+
+        // Dibujar la serpiente y la manzana
+        function drawGame() {
+            // Limpiar el canvas
+            gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+            // Dibujar la serpiente
+            for (let i = 0; i < snake.length; i++) {
+                // Cabeza de la serpiente (verde)
+                if (i === 0) {
+                    gameCtx.fillStyle = '#4CAF50';
+                } else {
+                    gameCtx.fillStyle = '#8BC34A';
+                }
+
+                gameCtx.fillRect(snake[i].x, snake[i].y, gridSize - 1, gridSize - 1);
+                gameCtx.strokeStyle = '#689F38';
+                gameCtx.strokeRect(snake[i].x, snake[i].y, gridSize, gridSize);
+            }
+
+            // Dibujar la manzana (roja)
+            gameCtx.fillStyle = '#F44336';
+            gameCtx.fillRect(apple.x, apple.y, gridSize - 1, gridSize - 1);
+            gameCtx.strokeStyle = '#D32F2F';
+            gameCtx.strokeRect(apple.x, apple.y, gridSize, gridSize);
+        }
+
+        // Mover la serpiente
+        function moveSnake() {
+            // Actualizar dirección
+            direction = nextDirection;
+
+            // Calcular nueva posición de la cabeza
+            const head = { x: snake[0].x, y: snake[0].y };
+
+            switch (direction) {
+                case 'up':
+                    head.y -= gridSize;
+                    break;
+                case 'down':
+                    head.y += gridSize;
+                    break;
+                case 'left':
+                    head.x -= gridSize;
+                    break;
+                case 'right':
+                    head.x += gridSize;
+                    break;
+            }
+
+            // Comprobar colisiones con los bordes (teletransportación)
+            if (head.x >= gameCanvas.width) head.x = 0;
+            if (head.x < 0) head.x = gameCanvas.width - gridSize;
+            if (head.y >= gameCanvas.height) head.y = 0;
+            if (head.y < 0) head.y = gameCanvas.height - gridSize;
+
+            // Comprobar colisión consigo misma (game over)
+            for (let i = 0; i < snake.length; i++) {
+                if (snake[i].x === head.x && snake[i].y === head.y) {
+                    gameOver = true;
+                    gameRunning = false;
+                    gameStatus.textContent = "¡Game Over! Chocaste contigo misma";
+                    gameStatus.style.backgroundColor = "#ffebee";
+                    gameStatus.style.borderLeft = "4px solid #f44336";
+                    return;
+                }
+            }
+
+            // Mover la serpiente
+            snake.unshift(head);
+
+            // Comprobar si come la manzana
+            if (head.x === apple.x && head.y === apple.y) {
+                score += 10;
+                scoreElement.textContent = score;
+                placeApple();
+            } else {
+                // Si no comió, quitar la cola
+                snake.pop();
+            }
+        }
+
+        // Bucle principal del juego
+        function gameLoop() {
+            if (gameRunning) {
+                moveSnake();
+                drawGame();
+            }
+        }
+
+        // Iniciar el juego
+        function startGame() {
+            initGame();
+            gameInterval = setInterval(gameLoop, 150);
+            startGameBtn.disabled = true;
+        }
+
+        // Reiniciar el juego
+        function resetGame() {
+            clearInterval(gameInterval);
+            initGame();
+            gameInterval = setInterval(gameLoop, 150);
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', startDetection);
+        stopBtn.addEventListener('click', stopDetection);
+        startGameBtn.addEventListener('click', startGame);
+        resetGameBtn.addEventListener('click', resetGame);
+
+        // Manejar errores de carga de imagen
+        ipCameraFeed.addEventListener('error', () => {
+            updateStatus('Error al cargar el feed de la cámara. Verifica la IP y que la app esté funcionando.', 'error');
+        });
+
+        ipCameraFeed.addEventListener('load', () => {
+            updateStatus('Feed de cámara cargado correctamente', 'success');
+        });
+
+        // Inicializar todo
+        initializePoseLandmarker();
+    </script>
+</body>
+
+</html>
