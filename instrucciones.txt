@@ -1,0 +1,17 @@
+requermientos para el jueguiito
+instalar la app en android ip webcam
+cambiar las configs para crear menor latencia y mejorar la velocidad de respuesta en tiempo real del video
+start server camara hasta abajo
+entrar a la ip de la camara para cambiar la vista a frontal
+
+1 cd C:\Users\giana\OneDrive\Escritorio\verano doc\SNAKE-CONTROLADO-CEL>
+2 npm install
+3 npm init -y 
+4 npm install express socket.io 
+
+pasos para levantar el juego
+1 cd C:\Users\giana\OneDrive\Escritorio\verano doc\SNAKE-CONTROLADO-CEL>
+2 npm start
+3 pagina master (el que controla las camaras y deteccion de puntos) http://localhost:3000/?controller
+4 pagina para espectadores http://localhost:3000
+

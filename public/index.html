@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Serpiente Multijugador con Poses</title>
+    <link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .video-container {
+            position: relative;
+            display: inline-block;
+            margin: 20px 10px;
+        }
+
+        .ip-camera-feed {
+            width: 480px;
+            height: 360px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .pose-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            border-radius: 8px;
+        }
+
+        .controls {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            border-left: 4px solid #2196f3;
+        }
+
+        .error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+
+        .success {
+            background: #e8f5e8;
+            border-left-color: #4caf50;
+        }
+
+        .config-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        input[type="text"] {
+            width: 200px;
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #2196f3;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1976d2;
+        }
+
+        .btn-secondary {
+            background: #757575;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #616161;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        .btn-success {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #388e3c;
+        }
+
+        /* Estilos para el juego de la serpiente */
+        #game-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        #snake-game {
+            border: 2px solid #333;
+            border-radius: 8px;
+            background-color: #f0f0f0;
+        }
+
+        .game-info {
+            margin-left: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            width: 300px;
+        }
+
+        .game-info h3 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        #game-status {
+            font-weight: bold;
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 4px;
+            background: #e3f2fd;
+        }
+
+        #players-info {
+            margin: 15px 0;
+        }
+
+        .player-score {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 6px;
+            border-radius: 4px;
+            background: #f1f1f1;
+        }
+
+        .player-1 {
+            border-left: 4px solid #2196f3;
+        }
+
+        .player-2 {
+            border-left: 4px solid #ff9800;
+        }
+
+        .instructions {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .instructions ul {
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+        }
+
+        .cameras-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .player-title {
+            text-align: center;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .player-1-title {
+            color: #2196f3;
+        }
+
+        .player-2-title {
+            color: #ff9800;
+        }
+
+        .spectator-info {
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+
+        .spectator-info h4 {
+            margin: 0;
+            color: #2196F3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🐍 Serpiente Multijugador con Poses</h1>
+
+        <div class="config-section">
+            <h3>Configuración de Cámaras</h3>
+            <div class="cameras-container">
+                <div>
+                    <div class="player-title player-1-title">Jugador 1 (Mano Izquierda)</div>
+                    <div class="video-container">
+                        <img id="ipCameraFeed1" class="ip-camera-feed" src="" alt="Feed de cámara IP Jugador 1"
+                            crossorigin="anonymous">
+                        <canvas id="poseCanvas1" class="pose-canvas" width="480" height="360"></canvas>
+                    </div>
+                    <div>
+                        <label>IP Cámara Jugador 1:</label>
+                        <input type="text" id="cameraIP1" value="192.168.1.37:8080" placeholder="192.168.1.37:8080">
+                        <button class="btn-secondary" onclick="updateCameraFeed(1)">Actualizar</button>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="player-title player-2-title">Jugador 2 (Mano Derecha)</div>
+                    <div class="video-container">
+                        <img id="ipCameraFeed2" class="ip-camera-feed" src="" alt="Feed de cámara IP Jugador 2"
+                            crossorigin="anonymous">
+                        <canvas id="poseCanvas2" class="pose-canvas" width="480" height="360"></canvas>
+                    </div>
+                    <div>
+                        <label>IP Cámara Jugador 2:</label>
+                        <input type="text" id="cameraIP2" value="192.168.1.48:8080" placeholder="192.168.1.48:8080">
+                        <button class="btn-secondary" onclick="updateCameraFeed(2)">Actualizar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="startDetection" class="btn-primary">Iniciar Detección</button>
+            <button id="stopDetection" class="btn-danger" disabled>Detener Detección</button>
+            <button class="btn-secondary" onclick="clearCanvas()">Limpiar Canvas</button>
+            <button id="startGame" class="btn-success">Iniciar Juego</button>
+            <button id="resetGame" class="btn-secondary">Reiniciar Juego</button>
+        </div>
+
+        <div id="status" class="status">
+            <strong>Estado:</strong> <span id="statusText">Esperando inicialización...</span>
+        </div>
+
+        <div id="game-container">
+            <canvas id="snake-game" width="600" height="600"></canvas>
+
+            <div class="game-info">
+                <h3>Información del Juego</h3>
+                <div id="game-status">Esperando para iniciar...</div>
+
+                <div class="spectator-info">
+                    <h4>Espectadores conectados: <span id="spectatorCount">0</span></h4>
+                </div>
+
+                <div id="players-info">
+                    <div class="player-score player-1">
+                        <span>Jugador 1 (Azul):</span>
+                        <span id="score1">0</span>
+                    </div>
+                    <div class="player-score player-2">
+                        <span>Jugador 2 (Naranja):</span>
+                        <span id="score2">0</span>
+                    </div>
+                </div>
+
+                <div class="instructions">
+                    <h4>Instrucciones:</h4>
+                    <ul>
+                        <li><strong>Jugador 1:</strong> Controla con tu mano izquierda:
+                            <ul>
+                                <li>• Arriba de la cabeza → Arriba</li>
+                                <li>• Debajo del torso → Abajo</li>
+                                <li>• A la izquierda → Izquierda</li>
+                                <li>• A la derecha → Derecha</li>
+                            </ul>
+                        </li>
+                        <li><strong>Jugador 2:</strong> Controla con tu mano derecha:
+                            <ul>
+                                <li>• Arriba de la cabeza → Arriba</li>
+                                <li>• Debajo del torso → Abajo</li>
+                                <li>• A la izquierda → Izquierda</li>
+                                <li>• A la derecha → Derecha</li>
+                            </ul>
+                        </li>
+                        <li>La serpiente que choque con su cabeza contra el cuerpo de la otra serpiente o contra sí
+                            misma pierde toda su puntuación y reinicia</li>
+                        <li>Hay 3 manzanas en el tablero que pueden ser comidas por cualquier serpiente</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>Información</h3>
+            <p>• Asegúrate de que la app IP Webcam esté funcionando en los celulares</p>
+            <p>• Todos los dispositivos deben estar en la misma red Wi-Fi</p>
+            <p>• La detección se actualiza cada 100ms para optimizar rendimiento</p>
+            <p>• Comparte esta URL para que otros vean el juego en tiempo real</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import {
+            PoseLandmarker,
+            FilesetResolver,
+            DrawingUtils
+        } from "https://cdn.skypack.dev/@mediapipe/tasks-vision@0.10.0";
+
+        // Conexión WebSocket
+        const socket = io();
+        let isController = false;
+
+        // Variables para la detección de poses
+        let poseLandmarker = null;
+        let detectionRunning = false;
+        let detectionInterval = null;
+
+        // Canvases para cada jugador
+        const canvas1 = document.getElementById('poseCanvas1');
+        const ctx1 = canvas1.getContext('2d');
+        const canvas2 = document.getElementById('poseCanvas2');
+        const ctx2 = canvas2.getContext('2d');
+
+        const drawingUtils1 = new DrawingUtils(ctx1);
+        const drawingUtils2 = new DrawingUtils(ctx2);
+
+        const ipCameraFeed1 = document.getElementById('ipCameraFeed1');
+        const ipCameraFeed2 = document.getElementById('ipCameraFeed2');
+
+        const statusText = document.getElementById('statusText');
+        const statusDiv = document.getElementById('status');
+
+        const startBtn = document.getElementById('startDetection');
+        const stopBtn = document.getElementById('stopDetection');
+        const startGameBtn = document.getElementById('startGame');
+        const resetGameBtn = document.getElementById('resetGame');
+
+        const gameStatus = document.getElementById('game-status');
+        const scoreElement1 = document.getElementById('score1');
+        const scoreElement2 = document.getElementById('score2');
+        const spectatorCount = document.getElementById('spectatorCount');
+
+        // Variables para el juego de la serpiente
+        const gameCanvas = document.getElementById('snake-game');
+        const gameCtx = gameCanvas.getContext('2d');
+        const gridSize = 20;
+        const tileCount = gameCanvas.width / gridSize;
+
+        // Variables de juego
+        let snakes = {
+            1: [], // Jugador 1
+            2: []  // Jugador 2
+        };
+        let apples = [];
+        let directions = {
+            1: 'right',
+            2: 'left'
+        };
+        let nextDirections = {
+            1: 'right',
+            2: 'left'
+        };
+        let scores = {
+            1: 0,
+            2: 0
+        };
+        let gameRunning = false;
+        let gameOver = false;
+        let gameInterval = null;
+
+        // Manejar conexión WebSocket
+        socket.on('connect', () => {
+            // Verificar si es el controlador principal
+            const params = new URLSearchParams(window.location.search);
+            isController = params.has('controller');
+
+            if (isController) {
+                updateStatus('Conectado como controlador principal', 'success');
+            } else {
+                updateStatus('Conectado como espectador', 'info');
+                // Ocultar controles para espectadores
+                document.querySelector('.controls').style.display = 'none';
+                document.querySelector('.config-section').style.display = 'none';
+            }
+        });
+
+        socket.on('spectator-count', (count) => {
+            spectatorCount.textContent = count;
+        });
+
+        // Recibir actualizaciones del juego
+        socket.on('game-state', (state) => {
+            snakes = state.snakes;
+            apples = state.apples;
+            scores = state.scores;
+            directions = state.directions;
+            gameRunning = state.gameRunning;
+            detectionRunning = state.detectionRunning;
+
+            // Actualizar UI
+            scoreElement1.textContent = scores[1];
+            scoreElement2.textContent = scores[2];
+            startBtn.disabled = !isController || detectionRunning;
+            stopBtn.disabled = !isController || !detectionRunning;
+
+            if (gameRunning) {
+                gameStatus.textContent = "Juego en curso";
+                gameStatus.style.backgroundColor = "#e8f5e8";
+                gameStatus.style.borderLeft = "4px solid #4caf50";
+            } else {
+                gameStatus.textContent = "Esperando para iniciar...";
+                gameStatus.style.backgroundColor = "#e3f2fd";
+                gameStatus.style.borderLeft = "4px solid #2196f3";
+            }
+
+            drawGame();
+        });
+
+        // Actualizar estado
+        function updateStatus(message, type = 'info') {
+            statusText.textContent = message;
+            statusDiv.className = 'status';
+            if (type === 'error') statusDiv.className += ' error';
+            if (type === 'success') statusDiv.className += ' success';
+        }
+
+        // Actualizar feed de cámara
+        window.updateCameraFeed = function (playerNum) {
+            const cameraIP = document.getElementById(`cameraIP${playerNum}`).value;
+            const ipCameraFeed = document.getElementById(`ipCameraFeed${playerNum}`);
+            const newSrc = `http://${cameraIP}/video`;
+            ipCameraFeed.src = newSrc;
+            updateStatus(`Feed Jugador ${playerNum} actualizado a: ${newSrc}`, 'info');
+        }
+
+        // Limpiar canvas
+        window.clearCanvas = function () {
+            ctx1.clearRect(0, 0, canvas1.width, canvas1.height);
+            ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
+        }
+
+        // Determinar la dirección basada en la posición de la mano
+        function determineDirection(hand, shoulderOpposite, shoulderSame, nose, isRightHand = false) {
+            if (!hand || !shoulderOpposite || !shoulderSame || !nose) return null;
+
+            // Calcular el centro del torso (entre los hombros)
+            const torsoCenterX = (shoulderSame.x + shoulderOpposite.x) / 2;
+            const torsoCenterY = (shoulderSame.y + shoulderOpposite.y) / 2;
+
+            // Calcular el ancho del torso (distancia entre hombros)
+            const torsoWidth = Math.abs(shoulderSame.x - shoulderOpposite.x);
+
+            // Definir zonas relativas al torso
+            const headThreshold = nose.y - torsoWidth * 0.5;
+            const torsoBottomThreshold = torsoCenterY + torsoWidth * 0.5;
+            const leftThreshold = torsoCenterX - torsoWidth * 0.6;
+            const rightThreshold = torsoCenterX + torsoWidth * 0.6;
+
+            // Determinar la posición relativa de la mano
+            if (hand.y < headThreshold) {
+                return 'up';
+            } else if (hand.y > torsoBottomThreshold) {
+                return 'down';
+            } else if (hand.x < leftThreshold) {
+                return 'right';
+            } else if (hand.x > rightThreshold) {
+                return 'left';
+            }
+
+            return null;
+        }
+
+        // Inicializar MediaPipe
+        async function initializePoseLandmarker() {
+            try {
+                updateStatus('Cargando modelo de MediaPipe...', 'info');
+
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+                );
+
+                poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+                        delegate: "GPU"
+                    },
+                    runningMode: "IMAGE",
+                    numPoses: 2
+                });
+
+                updateStatus('Modelo cargado correctamente. Listo para detectar poses.', 'success');
+                startBtn.disabled = false;
+                startGameBtn.disabled = false;
+
+            } catch (error) {
+                console.error('Error al cargar MediaPipe:', error);
+                updateStatus('Error al cargar el modelo: ' + error.message, 'error');
+            }
+        }
+
+        // Detectar poses en la imagen
+        async function detectPoses() {
+            if (!poseLandmarker || !detectionRunning) return;
+
+            try {
+                // Detectar para ambos jugadores
+                for (let playerNum = 1; playerNum <= 2; playerNum++) {
+                    const ipCameraFeed = document.getElementById(`ipCameraFeed${playerNum}`);
+                    const ctx = playerNum === 1 ? ctx1 : ctx2;
+                    const drawingUtils = playerNum === 1 ? drawingUtils1 : drawingUtils2;
+
+                    // Crear un canvas temporal para capturar la imagen
+                    const tempCanvas = document.createElement('canvas');
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCanvas.width = ipCameraFeed.width || 480;
+                    tempCanvas.height = ipCameraFeed.height || 360;
+
+                    // Dibujar la imagen actual del feed
+                    tempCtx.drawImage(ipCameraFeed, 0, 0, tempCanvas.width, tempCanvas.height);
+
+                    // Detectar poses
+                    const results = await poseLandmarker.detect(tempCanvas);
+
+                    // Limpiar canvas
+                    ctx.clearRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+                    // Dibujar landmarks y determinar dirección
+                    if (results.landmarks && results.landmarks.length > 0) {
+                        for (const landmarks of results.landmarks) {
+                            // Dibujar puntos de las articulaciones
+                            drawingUtils.drawLandmarks(landmarks, {
+                                radius: (data) => DrawingUtils.lerp(data.from?.z || 0, -0.15, 0.1, 8, 3),
+                                fillColor: playerNum === 1 ? '#2196F3' : '#FF9800',
+                                color: playerNum === 1 ? '#2196F3' : '#FF9800'
+                            });
+
+                            // Dibujar conexiones entre puntos
+                            drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
+                                color: playerNum === 1 ? '#0D47A1' : '#E65100',
+                                lineWidth: 2
+                            });
+
+                            // Obtener puntos clave para el control
+                            const hand = playerNum === 1 ? landmarks[15] : landmarks[16]; // Mano izquierda o derecha
+                            const shoulderSame = playerNum === 1 ? landmarks[11] : landmarks[12]; // Hombro izquierdo o derecho
+                            const shoulderOpposite = playerNum === 1 ? landmarks[12] : landmarks[11]; // Hombro opuesto
+                            const nose = landmarks[0]; // Nariz
+
+                            // Determinar dirección si el juego está en marcha
+                            if (gameRunning) {
+                                const newDirection = determineDirection(
+                                    hand,
+                                    shoulderOpposite,
+                                    shoulderSame,
+                                    nose,
+                                    playerNum === 2
+                                );
+
+                                if (newDirection) {
+                                    // Solo permitir cambios de dirección de 90 grados
+                                    const currentDir = directions[playerNum];
+                                    if (
+                                        (currentDir === 'up' && newDirection !== 'down') ||
+                                        (currentDir === 'down' && newDirection !== 'up') ||
+                                        (currentDir === 'left' && newDirection !== 'right') ||
+                                        (currentDir === 'right' && newDirection !== 'left')
+                                    ) {
+                                        socket.emit('update-direction', {
+                                            player: playerNum,
+                                            direction: newDirection
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error en detección:', error);
+            }
+        }
+
+        // Iniciar detección
+        function startDetection() {
+            if (!poseLandmarker) {
+                updateStatus('El modelo no está cargado aún', 'error');
+                return;
+            }
+
+            detectionRunning = true;
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            socket.emit('start-detection');
+
+            // Ejecutar detección cada 100ms
+            detectionInterval = setInterval(detectPoses, 100);
+            updateStatus('Detección iniciada...', 'info');
+        }
+
+        // Detener detección
+        function stopDetection() {
+            detectionRunning = false;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            socket.emit('stop-detection');
+
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+                detectionInterval = null;
+            }
+
+            clearCanvas();
+            updateStatus('Detección detenida', 'info');
+        }
+
+        // Dibujar el juego
+        function drawGame() {
+            // Limpiar el canvas
+            gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+            // Dibujar manzanas (verdes)
+            apples.forEach(apple => {
+                gameCtx.fillStyle = '#4CAF50';
+                gameCtx.fillRect(apple.x, apple.y, gridSize - 1, gridSize - 1);
+                gameCtx.strokeStyle = '#2E7D32';
+                gameCtx.strokeRect(apple.x, apple.y, gridSize, gridSize);
+            });
+
+            // Dibujar serpientes
+            for (const playerNum in snakes) {
+                const snake = snakes[playerNum];
+                if (!snake || snake.length === 0) continue;
+
+                const headColor = playerNum === '1' ? '#2196F3' : '#FF9800';
+                const bodyColor = playerNum === '1' ? '#64B5F6' : '#FFB74D';
+                const strokeColor = playerNum === '1' ? '#0D47A1' : '#E65100';
+
+                for (let i = 0; i < snake.length; i++) {
+                    // Cabeza de la serpiente
+                    if (i === 0) {
+                        gameCtx.fillStyle = headColor;
+                    } else {
+                        gameCtx.fillStyle = bodyColor;
+                    }
+
+                    gameCtx.fillRect(snake[i].x, snake[i].y, gridSize - 1, gridSize - 1);
+                    gameCtx.strokeStyle = strokeColor;
+                    gameCtx.strokeRect(snake[i].x, snake[i].y, gridSize, gridSize);
+                }
+            }
+        }
+
+        // Iniciar el juego
+        function initGame() {
+            socket.emit('start-game');
+        }
+
+        // Reiniciar el juego
+        function resetGame() {
+            socket.emit('reset-game');
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', startDetection);
+        stopBtn.addEventListener('click', stopDetection);
+        startGameBtn.addEventListener('click', initGame);
+        resetGameBtn.addEventListener('click', resetGame);
+
+        // Manejar errores de carga de imagen
+        ipCameraFeed1.addEventListener('error', () => {
+            updateStatus('Error al cargar el feed de la cámara del Jugador 1', 'error');
+        });
+
+        ipCameraFeed2.addEventListener('error', () => {
+            updateStatus('Error al cargar el feed de la cámara del Jugador 2', 'error');
+        });
+
+        ipCameraFeed1.addEventListener('load', () => {
+            updateStatus('Feed de cámara Jugador 1 cargado', 'success');
+        });
+
+        ipCameraFeed2.addEventListener('load', () => {
+            updateStatus('Feed de cámara Jugador 2 cargado', 'success');
+        });
+
+        // Inicializar todo
+        initializePoseLandmarker();
+    </script>
+</body>
+
+</html>
