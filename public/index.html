@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <title>Serpiente Multijugador con Poses</title>
+    <title>Serpiente multijugador con deteccion de puntos marcado de poses</title>
     <link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet">
     <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
@@ -234,7 +234,7 @@
 
 <body>
     <div class="container">
-        <h1>🐍 Serpiente Multijugador con Poses</h1>
+        <h1>🐍 Serpiente multijugador con deteccion de puntos marcado de poses</h1>
 
         <div class="config-section">
             <h3>Configuración de Cámaras</h3>
@@ -310,16 +310,16 @@
                             <ul>
                                 <li>• Arriba de la cabeza → Arriba</li>
                                 <li>• Debajo del torso → Abajo</li>
-                                <li>• A la izquierda → Izquierda</li>
-                                <li>• A la derecha → Derecha</li>
+                                <li>• A la izquierda del torso → Izquierda</li>
+                                <li>• En el centro o a la derecha del torso → Derecha</li>
                             </ul>
                         </li>
                         <li><strong>Jugador 2:</strong> Controla con tu mano derecha:
                             <ul>
                                 <li>• Arriba de la cabeza → Arriba</li>
                                 <li>• Debajo del torso → Abajo</li>
-                                <li>• A la izquierda → Izquierda</li>
-                                <li>• A la derecha → Derecha</li>
+                                <li>• A la izquierda del torso → Izquierda</li>
+                                <li>• En el centro o a la derecha del torso → Derecha</li>
                             </ul>
                         </li>
                         <li>La serpiente que choque con su cabeza contra el cuerpo de la otra serpiente o contra sí
@@ -389,7 +389,7 @@
         // Variables de juego
         let snakes = {
             1: [], // Jugador 1
-            2: []  // Jugador 2
+            2: []  // Jugador 2
         };
         let apples = [];
         let directions = {
@@ -479,36 +479,44 @@
             ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
         }
 
-        // Determinar la dirección basada en la posición de la mano
-        function determineDirection(hand, shoulderOpposite, shoulderSame, nose, isRightHand = false) {
+        // --- INICIO DE LA SECCIÓN MODIFICADA ---
+        /**
+         * Determina la dirección de la serpiente en base a la posición de la mano.
+         * Se corrige la lógica para los movimientos laterales para que se adapten a feeds de cámara invertidos.
+         */
+        function determineDirection(hand, shoulderOpposite, shoulderSame, nose) {
             if (!hand || !shoulderOpposite || !shoulderSame || !nose) return null;
 
-            // Calcular el centro del torso (entre los hombros)
+            // Calcular el centro del torso (punto medio entre los hombros)
             const torsoCenterX = (shoulderSame.x + shoulderOpposite.x) / 2;
             const torsoCenterY = (shoulderSame.y + shoulderOpposite.y) / 2;
 
-            // Calcular el ancho del torso (distancia entre hombros)
+            // Calcular el ancho del torso (distancia entre hombros) para definir las zonas
             const torsoWidth = Math.abs(shoulderSame.x - shoulderOpposite.x);
 
-            // Definir zonas relativas al torso
+            // Definir zonas verticales relativas al torso
             const headThreshold = nose.y - torsoWidth * 0.5;
             const torsoBottomThreshold = torsoCenterY + torsoWidth * 0.5;
-            const leftThreshold = torsoCenterX - torsoWidth * 0.6;
-            const rightThreshold = torsoCenterX + torsoWidth * 0.6;
 
-            // Determinar la posición relativa de la mano
+            // Priorizar los movimientos verticales
             if (hand.y < headThreshold) {
                 return 'up';
             } else if (hand.y > torsoBottomThreshold) {
                 return 'down';
-            } else if (hand.x < leftThreshold) {
-                return 'right';
-            } else if (hand.x > rightThreshold) {
+            }
+
+            // Lógica corregida para izquierda y derecha:
+            // Se invierten los movimientos para que coincidan con la percepción del usuario
+            // (cuando la cámara está invertida).
+            if (hand.x >= torsoCenterX) {
                 return 'left';
+            } else if (hand.x < torsoCenterX) {
+                return 'right';
             }
 
             return null;
         }
+        // --- FIN DE LA SECCIÓN MODIFICADA ---
 
         // Inicializar MediaPipe
         async function initializePoseLandmarker() {
@@ -592,8 +600,7 @@
                                     hand,
                                     shoulderOpposite,
                                     shoulderSame,
-                                    nose,
-                                    playerNum === 2
+                                    nose
                                 );
 
                                 if (newDirection) {

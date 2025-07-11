@@ -17,9 +17,10 @@
     "url": "https://github.com/GianCAF/Snake_Deteccion_Puntos/issues"
   },
   "homepage": "https://github.com/GianCAF/Snake_Deteccion_Puntos#readme",
-  "description": "",
   "dependencies": {
     "express": "^5.1.0",
     "socket.io": "^4.8.1"
-  }
+  },
+  "devDependencies": {},
+  "description": ""
 }
